@@ -599,6 +599,9 @@ end
 -- Function to create the formspec
 local function get_questbook_formspec(selected_quest_index, player_name)
     local selected_quest = quests[selected_quest_index]
+    if selected_quest == nil then
+        selected_quest = quests[1]
+    end
     local quest_list = ""
 
     for i, quest in ipairs(quests) do

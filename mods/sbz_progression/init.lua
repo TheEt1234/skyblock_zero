@@ -3,7 +3,9 @@ local modpath = minetest.get_modpath("sbz_progression")
 
 dofile(modpath .. "/questbook.lua")
 dofile(modpath .. "/annoy.lua")
-
+--dofile(modpath .. "/quests2file.lua")
+dofile(modpath .. "/parser.lua")
+dofile(modpath .. "/formspec.lua")
 function displayDialogueLine(player_name, text)
     minetest.chat_send_player(player_name, "⌠ " .. text .. " ⌡")
     minetest.sound_play("dialouge", {

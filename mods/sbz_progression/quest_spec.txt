@@ -1,0 +1,36 @@
+The quest spec, ok
+
+Questline: <some questline>
+---------------------------
+AAAAAAAAAAA - the text
+blabla
+yes its multiliney
+yes it can contain dashes but not at the start of the line - 
+---------------------------
+
+now... how to actually add quests
+
+
+Quest: Introduction
+------------------- (can be any number of dashes you want, has to end with new line)
+Description
+Blabla
+
+Whatever
+------------------- (same as before)
+depends: Quest3, Uranium (optional)
+Craft: mymod:my_block (optional, when it's crafted it will unlock the quest)
+Wield: mymod:my_block (optional, when the player has it in hand, it will unlock the quest)
+--------------------
+
+Quest: Quest3
+-------------
+blabla
+-------
+-------
+
+Quest: Quest4
+-------
+AAAAAAAAAAA you get it....
+
+You can also do secret quests with Secret: <quest>
