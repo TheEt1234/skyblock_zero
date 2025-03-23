@@ -21,7 +21,7 @@ local function set_filter_formspec(meta)
         fs_helpers.cycling_button(meta, "button[" .. (10.2 - (0.22) - 4) .. ",4.5;4,1", "exmatch_mode",
             { "Exact match - off",
                 "Exact match - on",
-               "Threshold" }) ..
+                "Threshold"}) ..
         pipeworks.fs_helpers.get_inv(6) ..
         "listring[]"
 
@@ -253,43 +253,35 @@ minetest.register_node("pipeworks:automatic_filter_injector", {
                     end
                     local item
                     local count = math.min(stack:get_count(), doRemove)
-                    if filterfor.count ~= nil then
-                        if exmatch_mode == 1 then
-                            if filterfor.count > count then
-                                return false -- not enough, fail
-                            else
-                                count = math.min(filterfor.count, count)
-                            end
+                    if exmatch_mode == 0 then
+                        if  filterfor.count > count then
+                            return false -- not enough, fail
                         end
-                        if exmatch_mode == 2 then
-                            if filterfor.count < count then
-                                count = count - filterfor.count
-                            else
-                                return false
-                            end
+                    end
+                    if exmatch_mode == 1 then
+                        if  filterfor.count > count then
+                            return false -- not enough, fail
+                        else
+                            -- limit quantity to filter amount
+                            count = math.min(filterfor.count, count)
                         end
+                    end
+                    if exmatch_mode == 2
+                    then
+                        count = count - filterfor.count
+
                     end
                     if fromtube.remove_items then
                         -- it could be the entire stack...
                         item = fromtube.remove_items(frompos, fromnode, stack, dir, count, frominvname, spos)
                     else
                         item = stack:take_item(count)
-                        local vel = vector.copy(todir)
-                        vel.speed = 1
                         if todef.tube and todef.tube.can_go then
-                            if not todef.tube.can_go(topos, tonode, vel, item, {}) then return false end
+                            if not todef.tube.can_go(topos, tonode, { x = 0, y = 0, z = 0, speed = 0 }, item, {}) then return false end
                         end
                         if todef.tube and todef.tube.can_insert then
-                            local can_insert, excess_count = todef.tube.can_insert(topos, tonode, item, vel)
-                            if not can_insert then return false end
-                            if excess_count then
-                                item:set_count(item:get_count() - excess_count)
-                                stack:set_count(stack:get_count() + excess_count)
-                                if stack:get_name() == "" then stack:set_name(item:get_name()) end
-                            end
+                            if not todef.tube.can_insert(topos, tonode, item, { x = 0, y = 0, z = 0, speed = 0 }) then return false end
                         end
-
-
                         frominv:set_stack(frominvname, spos, stack)
                         if fromdef.on_metadata_inventory_take then
                             fromdef.on_metadata_inventory_take(frompos, frominvname, spos, item, fakeplayer)
@@ -297,6 +289,8 @@ minetest.register_node("pipeworks:automatic_filter_injector", {
                     end
                     local pos = vector.add(frompos, vector.multiply(dir, 1.4))
                     local start_pos = vector.add(frompos, dir)
+
+
 
                     pipeworks.tube_inject_item(pos, start_pos, dir, item,
                         fakeplayer:get_player_name())
