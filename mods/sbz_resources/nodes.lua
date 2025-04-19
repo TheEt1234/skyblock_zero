@@ -77,7 +77,7 @@ stairs.register("sbz_resources:antimatter_blob")
 minetest.register_alias("sbz_resources:antimatter_stair", "sbz_resources:antimatter_blob_stair")
 minetest.register_alias("sbz_resources:antimatter_slab", "sbz_resources:antimatter_blob_slab")
 
-minetest.register_node("sbz_resources:antimatter_platform", {
+minetest.register_node("sbz_resources:antimatter_platform", unifieddyes.def {
     description = "Antimatter Platform",
     tiles = { "antimatter_blob.png^platform_overlay.png^[makealpha:255,0,0" },
     use_texture_alpha = "clip",
@@ -365,3 +365,23 @@ minetest.register_craft({
     output = "sbz_resources:core_dust 9",
     recipe = { "sbz_resources:compressed_core_dust" }
 })
+
+minetest.register_node("sbz_resources:wood_plank", unifieddyes.def {
+    description = "Wood Plank",
+    tiles = { "wood_plank.png" }, --from https://forum.luanti.org/viewtopic.php?p=325272 Licence: WTFPL
+    groups = { matter = 3, oddly_breakable_by_hand = 2, burn = 1, transparent = 1, explody = 10, },
+    walkable = true,
+    sounds = sbz_api.sounds.tree(),
+    on_punch = function(pos, node, puncher)
+        minetest.sound_play("invertedstep", { pos = pos, gain = 1.0 })
+    end,
+})
+
+core.register_craft({
+    type = "shapeless",
+    output = "sbz_resources:wood_plank 4",
+    recipe = {"sbz_bio:colorium_tree"},
+    stack_max = 256,
+})
+
+stairs.register("sbz_resources:wood_plank")
