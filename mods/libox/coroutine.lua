@@ -9,7 +9,7 @@ api.settings = {
         number_of_sandboxes = 60,
         auto = false,
         interval = 60
-    }
+    },
 }
 
 local settings = minetest.settings
@@ -40,6 +40,17 @@ end
 
 do_the_settings_thing("libox", api.settings)
 
+local attach_autohook = libox_autohook_module and libox_autohook_module.autohook
+local function attach_hook(sandbox)
+    if sandbox.autohook and attach_autohook then
+        attach_autohook(
+            sandbox.hook_time or libox.default_hook_time,
+            (sandbox.time_limit or libox.default_time_limit) / 1000)
+    else
+        debug.sethook(sandbox.in_hook(), "", sandbox.hook_time or libox.default_hook_time)
+    end
+end
+
 local BYTE_A, BYTE_Z = string.byte("A"), string.byte("Z")
 local function rand_text(n)
     local out = ""
@@ -57,11 +68,14 @@ function api.create_sandbox(def)
         code = def.code,
         is_garbage_collected = def.is_garbage_collected or true,
         env = def.env or {},
-        in_hook = def.in_hook or libox.coroutine.get_default_hook(def.time_limit or 3000),
+        -- TODO def.in_hook isn't called if autohook is available+enabled
+        -- whatever it wants to do is ignored in that case
+        in_hook = def.in_hook or libox.coroutine.get_default_hook(def.time_limit or libox.default_time_limit),
         function_wrap = def.function_wrap or function(f) return f end,
         last_ran = os.clock(),                         -- for gc and logging
         hook_time = def.hook_time or libox.default_hook_time,
-        size_limit = def.size_limit or 1024 * 1024 * 5 -- 5 megabytes
+        size_limit = def.size_limit or 1024 * 1024 * 5, -- 5 megabytes
+        autohook = def.autohook or false,
     }
     return ID
 end
@@ -275,7 +289,7 @@ function api.run_sandbox(ID, value_passed)
     -- "nested pcall just in case" i knowww its bad and it sounds bad but yeah i had crashes when there wasnt a pcall adn yeaah
     local no_strange_bug_happened = pcall(function()
         pcall_ok, pcall_errmsg = pcall(function()
-            debug.sethook(sandbox.in_hook(), "", sandbox.hook_time or libox.default_hook_time)
+            attach_hook(sandbox)
             getmetatable("").__index = sandbox.env.string
             ok, errmsg_or_value = coroutine.resume(thread, value_passed)
             debug.sethook()
