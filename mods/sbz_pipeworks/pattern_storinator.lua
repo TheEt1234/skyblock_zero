@@ -57,7 +57,7 @@ core.register_node(
                 if not cache.inv then
                     cache.meta = core.get_meta(pos)
                     cache.inv = cache.meta:get_inventory()
-                end -- originally: 1.6%
+                end
 
                 local meta, inv = cache.meta, cache.inv
                 local can_insert = true
@@ -79,36 +79,36 @@ core.register_node(
                 end
                 local stack_name = stack:get_name()
                 local stack_count = stack:get_count()
-                if can_insert then
-                    local pattern_stack, storage_stack, storage_stack_count, pattern_stack_count
-                    local should_check_if_filled = false
-                    for index = 1, #pattern do
-                        pattern_stack = pattern[index]
-                        if pattern_stack:get_name() == stack_name then
-                            storage_stack = storage[index]
-                            storage_stack_count = storage_stack:get_count()
-                            pattern_stack_count = pattern_stack:get_count()
-                            should_check_if_filled = true
+                if not can_insert then return stack end
+                local pattern_stack, storage_stack, storage_stack_count, pattern_stack_count
+                local should_check_if_filled = false
+                for index = 1, #pattern do
+                    pattern_stack = pattern[index]
+                    if pattern_stack:get_name() == stack_name then
+                        storage_stack = storage[index]
+                        storage_stack_count = storage_stack:get_count()
+                        pattern_stack_count = pattern_stack:get_count()
+                        should_check_if_filled = true
 
-                            if (storage_stack_count + stack_count) <= pattern_stack_count then
-                                storage_stack:set_count(storage_stack_count + stack_count)
-                                storage_stack:set_name(stack_name)
-                                inv:set_stack('storage', index, storage_stack)
-                                check_and_act_if_filled(pos, meta, storage, pattern)
-                                return ItemStack()
-                            elseif storage_stack_count < pattern_stack_count then
-                                local diffcount = (storage_stack_count + stack_count) - pattern_stack_count
-                                storage_stack:set_count(pattern_stack_count)
-                                storage_stack:set_name(stack_name)
-                                inv:set_stack('storage', index, storage_stack)
-                                check_and_act_if_filled(pos, meta, storage, pattern)
-                                storage_stack:set_count(diffcount)
-                                return storage_stack
-                            end
+                        if (storage_stack_count + stack_count) <= pattern_stack_count then
+                            storage_stack:set_count(storage_stack_count + stack_count)
+                            storage_stack:set_name(stack_name)
+                            inv:set_stack('storage', index, storage_stack)
+                            check_and_act_if_filled(pos, meta, storage, pattern)
+                            return ItemStack()
+                        elseif storage_stack_count < pattern_stack_count then
+                            local diffcount = (storage_stack_count + stack_count) - pattern_stack_count
+                            storage_stack:set_count(pattern_stack_count)
+                            storage_stack:set_name(stack_name)
+                            inv:set_stack('storage', index, storage_stack)
+                            check_and_act_if_filled(pos, meta, storage, pattern)
+                            storage_stack:set_count(diffcount)
+                            return storage_stack
                         end
                     end
-                    if should_check_if_filled then check_and_act_if_filled(pos, meta, storage, pattern) end
                 end
+                if should_check_if_filled then check_and_act_if_filled(pos, meta, storage, pattern) end
+
                 return stack
             end,
             can_insert = function(pos, node, stack, direction)
