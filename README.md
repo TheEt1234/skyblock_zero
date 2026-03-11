@@ -70,7 +70,7 @@ The following licenses are used within this work.
 | hudbars                    | <https://codeberg.org/Wuzzy/minetest_hudbars>                                   | MIT | CC BY-SA 3.0, MIT | ✅ |
 | playereffects              | <https://codeberg.org/Wuzzy/minetest_playereffects>                             | MIT | Unspecified/Same as Code License | ✅ |
 | areasprotector             | <https://cheapiesystems.com/git/areasprotector/>                                | The Unlicense | N/A | ✅ |
-| libox                      | <https://github.com/TheEt1234/libox/>                                           | LGPL-3.0-only | N/A | ❌ |
+| slua                       | <https://codeberg.org/skyblock_zero/slua>                                       | MIT | N/A | ❌ | Contains code for the entire tl transpiler |
 | minetest-fmod (fmod)       | <https://github.com/fluxionary/luanti-fmod>                                     | LGPL-3.0-only | N/A | ❌ |
 | minetest-futil (futil)     | <https://github.com/fluxionary/luanti-futil/>                                   | LGPL-3.0-only | N/A | ❌ |
 | unified_inventory_plus     | <https://github.com/mt-mods/unified_inventory_plus>                             | LGPL-3.0-only | CC0 | ❌ |

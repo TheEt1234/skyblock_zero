@@ -4,9 +4,6 @@
 [submodule "mods/unified_inventory_plus"]
 	path = mods/unified_inventory_plus
 	url = https://github.com/mt-mods/unified_inventory_plus
-[submodule "mods/libox"]
-	path = mods/libox
-	url = https://github.com/TheEt1234/libox
 [submodule "mods/fakelib"]
 	path = mods/fakelib
 	url = https://github.com/OgelGames/fakelib
@@ -37,3 +34,6 @@
 [submodule "mods/extended_placement"]
 	path = mods/extended_placement
 	url = https://github.com/gamefreq0/extended_placement
+[submodule "mods/slua"]
+	path = mods/slua
+	url = https://codeberg.org/skyblock_zero/slua
