@@ -5,6 +5,19 @@ local transport_items = loadfile(core.get_modpath 'sbz_luacontroller' .. '/item_
 
 sbz_luacs.yield_functions = {}
 
+sbz_luacs.yield_functions['get_event'] = {
+    typedef = {},
+    f = function(_, _, sandbox)
+        local e = table.remove(sandbox.events)
+        if e then
+            sandbox.report_event_once = true
+            sbz_luacs.delay(0, sbz_luacs.delayable_functions.get_event_to_sandbox, sandbox, e)
+        else
+            sandbox.report_event_once = true
+        end
+    end,
+}
+
 sbz_luacs.yield_functions['wait'] = {
     typedef = {
         time = function(n)
@@ -13,22 +26,22 @@ sbz_luacs.yield_functions['wait'] = {
             return true
         end,
     },
-    f = function(pos, response, sandbox)
-        local meta = core.get_meta(pos)
-        if meta:get_int 'waiting' == 0 then
-            meta:set_int('waiting', 1)
-            --- FIXME: Implement waiting
-            sbz_luacs.delay(response.time, sbz_luacs.delayable_functions.wait_resume, sandbox)
-        end
+    f = function(_, response, sandbox)
+        sbz_luacs.delay(response.time, sbz_luacs.delayable_functions.wait_resume, sandbox)
     end,
 }
 
 local function wait_resume(sandbox)
-    sandbox.meta:set_int('waiting', 0)
     sbz_luacs.send_event_to_sandbox(sandbox.pos, { type = 'wait' })
 end
 
 sbz_luacs.delayable_functions.wait_resume = wait_resume
+
+-- Or just set some variable in the sandbox that makes it report the event
+-- That sounds lot more performant
+sbz_luacs.delayable_functions.get_event_to_sandbox = function(sandbox, e)
+    if sandbox.report_event_once then sbz_luacs.activate_sandbox(sandbox, e) end
+end
 
 sbz_luacs.yield_functions['transport_items'] = {
     typedef = {
@@ -46,7 +59,7 @@ sbz_luacs.yield_functions['transport_items'] = {
 ---@param typedef { [string?]: fun(x: any): boolean }
 ---@param obj any
 local function validate_types(obj, typedef)
-    if type(obj) ~= 'false' then return false end
+    if type(obj) ~= 'table' then return false end
     for name, f in pairs(typedef) do
         if f(obj[name]) == false then return false, name end
     end
@@ -54,6 +67,11 @@ local function validate_types(obj, typedef)
 end
 
 function sbz_luacs.after_yield(pos, response, sandbox)
+    if response == 'timeout' then -- from slua, should be equal to doing wait(0)
+        if not sandbox.report_event_once then
+            sbz_luacs.delay(0, sbz_luacs.delayable_functions.send_event_to_sandbox, pos, nil)
+        end
+    end
     if type(response) ~= 'table' then return end
     if type(response.type) ~= 'string' then return end
 

@@ -5,9 +5,10 @@ tabheader[0,0;tab;Code,Terminal,Documentation;%s;false;true]
 style_type[*;font=mono]
 style[start;bgcolor=#00ff00]
 style[stop;bgcolor=#ff0000]
+style_type[textarea;textcolor=]
 ]]
 
--- FIXME: There may be cases where the user wants the term tab and the code tab at once
+-- TODO: There may be cases where the user wants the term tab and the code tab at once
 
 local base_code_tab = [[
 container[.4,.4]
@@ -45,18 +46,26 @@ local tabs = {
 
 function sbz_luacs.ui(pos, meta, fields, sender)
     if sender then sbz_api.ui.set_player(sender) end
-    fields = fields or { tab = tostring(meta:get_int('current_tab')) }
+    fields = fields or { tab = meta:get_string('current_tab') }
 
-    if tostring(fields.tab) == '0' or not fields.tab then fields.tab = meta:get_string('current_tab') end
+    if fields.tab == '0' or not fields.tab then fields.tab = meta:get_string('current_tab') end
     meta:set_string('current_tab', fields.tab)
 
     if not fields.code then fields.code = meta:get_string('code') end
     meta:set_string('code', fields.code) -- save code
 
     local fs = { base_formspec:format(fields.tab) }
+
+    if fields.clear then meta:set_string('terminal', '') end
+
+    if fields.start and not sbz_luacs.is_on(meta) then sbz_luacs.set_state(pos, meta, true) end
+    if fields.stop and sbz_luacs.is_on(meta) then sbz_luacs.set_state(pos, meta, false) end
+
+    if fields.term_input and fields.term_input ~= '' then
+        sbz_luacs.send_event_to_sandbox(pos, { type = 'terminal', msg = fields.term_input })
+    end
+
     if fields.tab == tabs.code then
-        if fields.start and not sbz_luacs.is_on(meta) then sbz_luacs.set_state(pos, meta, true) end
-        if fields.stop and sbz_luacs.is_on(meta) then sbz_luacs.set_state(pos, meta, false) end
         local code_box
 
         local padding = 0.1
@@ -72,9 +81,9 @@ function sbz_luacs.ui(pos, meta, fields, sender)
             sbz_luacs.is_on(meta) and 'Stop' or 'Start'
         )
     elseif fields.tab == tabs.terminal then
-        if fields.clear then meta:set_string('terminal', '') end
         fs[#fs + 1] = base_term_tab:format(core.formspec_escape(meta:get_string('terminal')))
     end
+
     meta:set_string('formspec', table.concat(fs))
     sbz_api.ui.del_player()
 end
@@ -98,10 +107,32 @@ sbz_luacs.loglevels = {
     error = 5,
 }
 
---- FIXME: IDK D:
-function sbz_luacs.luac_print(pos, loglevel, msg) end
+sbz_luacs.loglevel_prefixes = {
+    [sbz_luacs.loglevels.verbose] = '[verbose] ',
+    [sbz_luacs.loglevels.info] = '[info] ',
+    [sbz_luacs.loglevels.default] = '',
+    [sbz_luacs.loglevels.error] = '[error] ',
+    [sbz_luacs.loglevels.warning] = '[warning] ',
+}
 
---- FIXME: IDK D:
+function sbz_luacs.luac_print(pos, loglevel, msg)
+    local meta = core.get_meta(pos)
+    local term = meta:get_string('terminal')
+    assert(sbz_luacs.loglevel_prefixes[loglevel], 'Invalid loglevel, Report this as a bug')
+    msg = sbz_luacs.loglevel_prefixes[loglevel] .. msg .. '\n'
+    term = term .. msg
+    term = string.sub(term, math.max(0, #term - sbz_luacs.term_max_char_limit), #term)
+    meta:set_string('terminal', term)
+
+    -- NOTE: is that annoying
+    local active_tab = meta:get_string('current_tab')
+    if active_tab == tabs.terminal then sbz_luacs.ui(pos, meta) end
+end
+
 function sbz_luacs.luac_error(pos, err)
-    core.debug(err)
+    err = tostring(err)
+    local lines = string.split(err, '\n')
+    for _, line in ipairs(lines) do
+        sbz_luacs.luac_print(pos, sbz_luacs.loglevels.error, line)
+    end
 end

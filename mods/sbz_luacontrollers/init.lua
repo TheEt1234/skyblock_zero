@@ -19,7 +19,9 @@ sbz_luacs = {
 
     -- == Misc luac related configuration == --
     max_memsize = 1024 * 8,
-    max_us_per_second = 30 * 1000,
+    max_ms_per_second = 30,
+    term_max_char_limit = 10000,
+    max_events = 100, -- if a luacontroller has more than 100 events, it will start dropping them, doesn't matter how long/short they are
 }
 
 sbz_luacs.log = function(msg)
@@ -33,10 +35,10 @@ local MP = core.get_modpath('sbz_luacontroller')
 
 dofile(MP .. '/utils.lua') -- INFO: Refactor done
 dofile(MP .. '/luacomm.lua') -- INFO: Refactor done, need to refactor all all devices to use it
-dofile(MP .. '/link_tool.lua') -- INFO: Refactor done, though may want to change the functionality
+dofile(MP .. '/link_tool.lua')
 
 dofile(MP .. '/env.lua') -- INFO: Refactor in progress
---- FIXME: MAKE sure all luacontroller devices USE ABSOLUTE POSITIONS
+--- TODO: MAKE sure all luacontroller devices USE ABSOLUTE POSITIONS
 
 dofile(MP .. '/sandbox.lua')
 dofile(MP .. '/yield_behavior.lua')
@@ -67,15 +69,15 @@ sbz_api.register_stateful_machine('sbz_luacontroller:luacontroller', {
 
     _luacomm_receive = function(pos, msg, from_pos)
         sbz_luacs.send_event_to_sandbox(pos, {
-            type = 'receive',
+            type = 'luacomm',
             msg = msg,
             from_pos = from_pos,
         })
     end,
 
-    on_turn_off = sbz_luacs.on_turn_off,
-    after_dig_node = sbz_luacs.on_turn_off,
-
+    after_dig_node = function(pos)
+        sbz_luacs.remove_sandbox(pos, core.get_meta(pos))
+    end,
     on_receive_fields = sbz_luacs.on_receive_fields,
 
     groups = {

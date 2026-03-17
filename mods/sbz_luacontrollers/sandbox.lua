@@ -1,13 +1,16 @@
--- btw "us_taken" means "microseconds_taken" in this codebase
--- you are welcome
+-- btw "ms_used" means "miliseconds taken" in this codebase
 
 --- pos/meta should be updated on mov
+
 ---@class luac_sandbox
 ---@field pos vector
 ---@field meta table|userdata
 ---@field thread thread
 ---@field env table
 ---@field id string
+---@field events any[]
+---@field report_event_once boolean|nil for coroutine.yield('get_event')
+---@field dead boolean
 
 ---@type { [string]: luac_sandbox }
 sbz_luacs.sandboxes = {}
@@ -22,30 +25,34 @@ function sbz_luacs.is_on(meta)
 end
 
 -- Use sbz_luacs.set_state to turn off the sandbox, not this
--- This is used by sbz_luacs.set_state, and called manually when the luac is dug FIXME: ACTUALLY DO THAT
+-- This is used by sbz_luacs.set_state, and called manually when the luac is dug
 function sbz_luacs.remove_sandbox(pos, meta)
     local id = meta:get_string('ID')
-    sbz_luacs.sandboxes[id] = nil
+    if sbz_luacs.sandboxes[id] then
+        sbz_luacs.sandboxes[id].dead = true
+        sbz_luacs.sandboxes[id] = nil
+    end
     meta:set_string('ID', '')
 end
 
 function sbz_luacs.set_state(pos, meta, state)
     local current_state = meta:get_int('luac_on')
-    if current_state ~= (state and 1 or 0) then -- if the current state is going to get changed
+    local new_state = state and 1 or 0
+    meta:set_int('luac_on', new_state)
+    if current_state ~= new_state then -- if the current state is going to get changed
         if state == false then
             sbz_luacs.remove_sandbox(pos, meta)
         elseif state == true then
             sbz_luacs.create_sandbox(pos, meta)
         end
     end
-    meta:set_int('luac_on', state and 1 or 0)
     sbz_luacs.ui(pos, meta) -- NOTE: Is this too annoying?
 end
 
 function sbz_luacs.can_run_sandbox(meta)
     if sbz_luacs.is_on(meta) == false then return false end
     if meta:get_int 'bill' ~= 0 then return false end
-    if (meta:get_float 'us_used') > sbz_luacs.max_us_per_second then return false end
+    if (meta:get_float 'ms_used') > sbz_luacs.max_ms_per_second then return false end
     return true
 end
 
@@ -58,6 +65,7 @@ function sbz_luacs.create_sandbox(pos, meta)
         pos = pos,
         meta = meta,
         id = id,
+        events = {},
     }
 
     sandbox.env = sbz_luacs.get_env(sandbox)
@@ -70,8 +78,9 @@ function sbz_luacs.create_sandbox(pos, meta)
     }
 
     if syntax_errors then
-        sbz_luacs.luac_error(pos, 'OWCHIE! THERE WERE SYNTAX ERRORS! I hate syntax errors! ..' .. dump(syntax_errors))
-        return
+        sbz_luacs.luac_error(pos, sbz_luacs.stringify_syntax_error(syntax_errors, meta:get_string('code')))
+        sbz_luacs.set_state(pos, meta, false)
+        return false
     end
 
     sandbox.thread = thread
@@ -89,21 +98,47 @@ function sbz_luacs.create_sandbox(pos, meta)
     return id
 end
 
-function sbz_luacs.send_event_to_sandbox(pos, event)
-    local t0 = sbz_api.clock_ms()
+-- WARN: This is for internal use, please use sbz_luacs.send_event_to_sandbox instead unless you know what you are doing
+-- This function differs from sbz_luacs.send_event_to_sandbox in that it just activates it, it doesn't store or process the event
+-- sbz_luacs.send_event_to_sandbox just stores the event, doesn't actually call the sandbox with it, this function has the power to *actually* send an event, okay this is confusing
+---@param event any|nil
+---@param sandbox luac_sandbox
+function sbz_luacs.activate_sandbox(sandbox, event)
+    if sandbox.dead then return false end
+    if not sbz_luacs.can_run_sandbox(sandbox.meta) then return false end
+    local meta = sandbox.meta
+    local pos = sandbox.pos
 
+    local t0 = sbz_api.clock_ms()
+    local ok, errmsg = slua.run_sandbox(sandbox.thread, sandbox.env, event)
+    local time = (sbz_api.clock_ms() - t0)
+    meta:set_float('ms_used', meta:get_float 'ms_used' + time)
+
+    sbz_luacs.log('Activated ' .. vector.to_string(pos))
+
+    if coroutine.status(sandbox.thread) == 'dead' then sbz_luacs.set_state(pos, meta, false) end
+
+    if not ok then
+        sbz_luacs.luac_error(pos, errmsg)
+        return false
+    else
+        local value = errmsg
+        sbz_luacs.after_yield(pos, value, sandbox)
+        return true
+    end
+end
+
+function sbz_luacs.send_event_to_sandbox(pos, event)
     local meta = core.get_meta(pos)
     if not sbz_luacs.can_run_sandbox(meta) then return false end
 
     local id = meta:get_string 'ID'
-
     local sandbox = sbz_luacs.sandboxes[id]
 
     -- *Automatically create a sandbox if there isn't one*
     if not sandbox then
         local new_id = sbz_luacs.create_sandbox(pos, meta)
         if not new_id then return false end
-
         meta:set_string('ID', new_id)
 
         id = new_id
@@ -114,56 +149,44 @@ function sbz_luacs.send_event_to_sandbox(pos, event)
     sbz_luacs.update_sandbox_pos(sandbox, pos)
     sbz_luacs.update_env_links(meta, sandbox.env)
 
-    -- Actually run the thing
-    local ok, errmsg = slua.run_sandbox(sandbox.thread, sandbox.env, event)
-
-    meta:set_float('us_used', meta:get_float 'us_used' + (sbz_api.clock_ms() - t0))
-
-    sbz_luacs.log('Sent event to: ' .. vector.to_string(pos))
-
-    if not ok then
-        sbz_luacs.luac_error(pos, errmsg)
-
-        -- This means something like an error killed it
-        -- So just turn it off
-        if coroutine.status(sandbox.thread) == 'dead' then sbz_luacs.set_state(pos, meta, false) end
-        return false
-    else
-        local value = errmsg
-        sbz_luacs.after_yield(pos, value, id)
-
-        return true
+    if sandbox.report_event_once then
+        if event == nil then return true end
+        sandbox.report_event_once = false
+        return sbz_luacs.activate_sandbox(sandbox, event)
     end
+
+    if event ~= nil then
+        if #sandbox.events > sbz_luacs.max_events then table.remove(sandbox.events, 1) end
+        table.insert(sandbox.events, event)
+    end
+    return sbz_luacs.activate_sandbox(sandbox, nil)
 end
 
 sbz_luacs.delayable_functions.send_event_to_sandbox = sbz_luacs.send_event_to_sandbox
 
-function sbz_luacs.calculate_bill(us_used)
-    return math.ceil(us_used) * 4
-end
-
-local function format_lag(x)
-    return tostring(math.floor(x / 1000)) .. 'ms'
+function sbz_luacs.calculate_bill(ms_used)
+    return math.ceil(ms_used) * 4
 end
 
 -- switching station action
 function sbz_luacs.on_tick(pos, _, meta, supply, demand)
-    if sbz_luacs.is_on(meta) == false then
-        meta:set_string('infotext', 'Off.')
-        return 0
-    end
-
     local old_bill = meta:get_int 'bill'
 
     if old_bill ~= 0 then
         local bill = old_bill
         local result = math.max(0, bill - (supply - demand))
         meta:set_int('bill', result)
+        meta:set_string('infotext', 'Luacontroller needs power: ' .. bill .. 'Cj')
         return math.max(0, meta:get_int 'bill' - result)
     end
 
-    local us_taken = meta:get_float 'us_taken'
-    local bill = sbz_luacs.calculate_bill(us_taken)
+    if sbz_luacs.is_on(meta) == false then
+        meta:set_string('infotext', 'Off.')
+        return 0
+    end
+
+    local ms_used = meta:get_float 'ms_used'
+    local bill = sbz_luacs.calculate_bill(ms_used)
 
     local net = supply - demand
     local power_consumed
@@ -177,17 +200,10 @@ function sbz_luacs.on_tick(pos, _, meta, supply, demand)
         power_consumed = bill
     end
 
-    meta:set_string(
-        'infotext',
-        string.format(
-            'Lag: %s\nBill: %s Cj\nCan run: %s',
-            format_lag(us_taken),
-            bill,
-            sbz_luacs.can_run_sandbox(meta) and 'yes' or 'no'
-        )
-    )
+    meta:set_string('infotext', string.format('Lag: %s/%sms\n', math.floor(ms_used), sbz_luacs.max_ms_per_second))
 
-    meta:set_float('us_taken', 0)
+    meta:set_float('ms_used', 0)
+
     sbz_luacs.send_event_to_sandbox(pos, { type = 'tick', supply = supply, demand = demand })
 
     return power_consumed

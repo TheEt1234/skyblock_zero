@@ -103,6 +103,26 @@ end
 ---@return integer|false bytes
 function sbz_luacs.object_size(object, max_size, serializable)
     local object_size = object_size_internal(object, max_size, serializable, {})
-    if object_size == false or object_size > max_size then return false end
+    if object_size == false then return false end
+    if max_size and object_size > max_size then return false end
     return object_size
+end
+
+function sbz_luacs.stringify_syntax_error(syntax_errors, code)
+    if type(syntax_errors) == 'string' then return syntax_errors end
+
+    local code_split = code:split('\n')
+
+    local out = {}
+    for _, err in ipairs(syntax_errors) do
+        local relevant_line = code_split[err.y]
+        if relevant_line and #relevant_line < 100 then
+            table.insert(out, ('> %s'):format(relevant_line))
+            table.insert(out, ('%s^'):format((' '):rep(err.x + 1)))
+        end
+        table.insert(out, string.format('%s:%s:%s: %s', err.filename, err.x, err.y, err.msg))
+        table.insert(out, ' ')
+    end
+
+    return table.concat(out, '\n')
 end

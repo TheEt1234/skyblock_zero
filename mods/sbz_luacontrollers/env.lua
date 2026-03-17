@@ -96,7 +96,7 @@ function sbz_luacs.update_env_links(meta, env)
     env.links = sbz_luacs.get_luacontroller_links(meta)
 end
 
----@param sandbox {pos: vector, meta:core.NodeMetaRef} # Cannot get sandbox.env obviously
+---@param sandbox { pos: vector, meta: core.NodeMetaRef } # Cannot get sandbox.env obviously
 function sbz_luacs.get_env(sandbox)
     local env = {}
     slua.env.init_environment(env, sandbox_config)
@@ -108,7 +108,7 @@ function sbz_luacs.get_env(sandbox)
     local function wait_for_event_type(event_type)
         local ignored_events = {}
         while true do
-            local e = coroutine.yield()
+            local e = coroutine.yield({ type = 'get_event' })
             ignored_events[#ignored_events + 1] = e
             if e.type == event_type then return ignored_events end
         end
@@ -121,6 +121,13 @@ function sbz_luacs.get_env(sandbox)
         wait_for_event_type = wait_for_event_type,
         chat_debug = sbz_luacs.get_chat_debug_function(sandbox, owner),
 
+        print = make_safer(function(msg)
+            sbz_luacs.luac_print(sandbox.pos, sbz_luacs.loglevels.default, tostring(msg))
+        end),
+        print_clear = make_safer(function()
+            sandbox.meta:set_string('terminal', '')
+        end),
+
         -- no i am not intentionally making my code look like Java
         -- this is needed
         -- sandbox.pos can change and will change
@@ -130,12 +137,18 @@ function sbz_luacs.get_env(sandbox)
         end,
 
         wait = function(t)
-            local e = coroutine.yield({
+            coroutine.yield({
                 type = 'wait',
                 time = t,
             })
+            local e = coroutine.yield({ type = 'get_event' })
             if e.type == 'wait' then return { e } end
+
             return wait_for_event_type('wait')
+        end,
+
+        get_event = function()
+            return coroutine.yield({ type = 'get_event' })
         end,
 
         luacomm_send = make_safer(function(pos, msg)
